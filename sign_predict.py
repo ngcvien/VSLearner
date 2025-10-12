@@ -91,7 +91,7 @@ while True:
             else:
                 label = labels[pred_idx]
                 conf = probs[pred_idx]
-                if conf < 0.9:
+                if conf < 0.7:
                     display_text = "Unknown"
                 else:
                     display_text = f"{label} ({conf:.2f})"
