@@ -15,10 +15,10 @@ import tensorflow as tf
 from tensorflow.keras import layers, callbacks, models
 import pickle
 
-DATA_DIR = "data"   
-MODEL_OUT = "sign_model.h5"
-SCALER_OUT = "scaler.pkl"
-LABELS_OUT = "labels.json"
+DATA_DIR = "../data/raw"   
+MODEL_OUT = "../models/sign_model.h5"
+SCALER_OUT = "../models/scaler.pkl"
+LABELS_OUT = "../models/labels.json"
 RANDOM_SEED = 42
 
 # 1. Đọc dữ liệu

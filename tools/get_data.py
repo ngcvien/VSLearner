@@ -13,7 +13,7 @@ hands = mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_c
 label = input("Nhập tên ký hiệu (ví dụ: Hello, A, B...): ")
 
 # --- Tạo folder riêng cho ký hiệu ---
-folder_path = f"data/{label}"
+folder_path = f"../data/raw/{label}"
 os.makedirs(folder_path, exist_ok=True)
 
 # --- Tìm số file hiện có để đặt tên tiếp theo ---

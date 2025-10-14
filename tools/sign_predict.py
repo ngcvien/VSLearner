@@ -8,9 +8,9 @@ import pickle
 import os
 
 # --- Paths 
-MODEL_PATH = "sign_model.h5"
-SCALER_PATH = "scaler.pkl"
-LABELS_PATH = "labels.json"
+MODEL_PATH = "../models/sign_model.h5"
+SCALER_PATH = "../models/scaler.pkl"
+LABELS_PATH = "../models/labels.json"
 
 # --- Load model, scaler, labels ---
 model = tf.keras.models.load_model(MODEL_PATH)
