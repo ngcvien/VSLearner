@@ -88,7 +88,6 @@ secrets.json
 # Data and large files
 # Ignore raw data and enrollment data directories (already in repo currently).
 # Adding these here prevents future accidental commits of large datasets.
-data/raw/
 data/enroll/
 
 # Models and trained artifacts
