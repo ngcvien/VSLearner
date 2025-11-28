@@ -59,7 +59,8 @@ class PiSignApp:
         )
 
         # Camera
-        self.cap = cv2.VideoCapture(0)
+        url = "http://192.168.1.177:4747/video"
+        self.cap = cv2.VideoCapture(url)
         self.cap.set(3, CAM_WIDTH)
         self.cap.set(4, CAM_HEIGHT)
 

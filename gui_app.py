@@ -189,10 +189,10 @@ class SignApp:
         title_label = tk.Label(header_frame, text="VSLearner", 
                               font=("Segoe UI", 32, "bold"),
                               fg=PRIMARY_COLOR, bg=SECONDARY_BG)
-        title_label.pack(side=tk.LEFT, padx=30, pady=15)
+        title_label.pack(side=tk.LEFT, padx=15, pady=15)
         
         subtitle_label = tk.Label(header_frame, text="Hệ thống nhận diện ngôn ngữ ký hiệu",
-                                 font=("Segoe UI", 14),
+                                 font=("Segoe UI", 16),
                                  fg=TEXT_COLOR, bg=SECONDARY_BG)
         subtitle_label.pack(side=tk.LEFT, padx=(0, 30), pady=15)
         
@@ -234,9 +234,9 @@ class SignApp:
         control_frame = tk.Frame(right_frame, bg=SECONDARY_BG)
         control_frame.pack(fill=tk.X, pady=(0, 15))
         
-        tk.Label(control_frame, text="⚙️ ĐIỀU KHIỂN", 
-                font=("Segoe UI", 14, "bold"),
-                fg=TEXT_COLOR, bg=SECONDARY_BG).pack(pady=(15, 10))
+#        tk.Label(control_frame, text="⚙️ ĐIỀU KHIỂN", 
+#                font=("Segoe UI", 14, "bold"),
+#                fg=TEXT_COLOR, bg=SECONDARY_BG).pack(pady=(15, 10))
         
         # Buttons
         btn_frame = tk.Frame(control_frame, bg=SECONDARY_BG)
@@ -252,7 +252,7 @@ class SignApp:
         
         save_btn = ModernButton(btn_frame, "💾 LƯU RA FILE", 
                                self.save_text, width=340, height=50)
-        save_btn.pack(pady=8, padx=20)
+#        save_btn.pack(pady=8, padx=20)
         
         # TTS Toggle
         tts_frame = tk.Frame(control_frame, bg=SECONDARY_BG)
@@ -260,13 +260,35 @@ class SignApp:
         
         tk.Checkbutton(tts_frame, text="🔊 Chuyển văn bản thành lời", 
                       variable=self.tts_on,
-                      font=("Segoe UI", 11),
+                      font=("Segoe UI", 14),
                       fg=TEXT_COLOR, bg=SECONDARY_BG,
                       selectcolor=ACCENT_COLOR,
                       activebackground=SECONDARY_BG,
                       activeforeground=PRIMARY_COLOR).pack()
         
-        # Statistics panel
+
+        
+        # Output text panel
+        output_frame = tk.Frame(right_frame, bg=SECONDARY_BG)
+        output_frame.pack(fill=tk.BOTH, expand=True)
+        
+        tk.Label(output_frame, text="📝 VĂN BẢN NHẬN DIỆN", 
+                font=("Segoe UI", 16, "bold"),
+                fg=TEXT_COLOR, bg=SECONDARY_BG).pack(pady=(15, 10))
+        
+        # Text widget with custom styling
+        text_container = tk.Frame(output_frame, bg=ACCENT_COLOR, padx=2, pady=2)
+        text_container.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
+        
+        self.result_widget = tk.Text(text_container, wrap='word',
+                                     font=("Consolas", 18),
+                                     bg="#0a0a0a", fg=SUCCESS_COLOR,
+                                     insertbackground=PRIMARY_COLOR,
+                                     relief=tk.FLAT,
+                                     padx=15, pady=15)
+        self.result_widget.pack(fill=tk.BOTH, expand=True)
+        
+                # Statistics panel
         stats_frame = tk.Frame(right_frame, bg=SECONDARY_BG)
         stats_frame.pack(fill=tk.X, pady=(0, 15))
         
@@ -295,26 +317,6 @@ class SignApp:
                                    fg=TEXT_COLOR, bg=SECONDARY_BG,
                                    anchor='w')
         self.conf_label.pack(fill=tk.X, pady=3)
-        
-        # Output text panel
-        output_frame = tk.Frame(right_frame, bg=SECONDARY_BG)
-        output_frame.pack(fill=tk.BOTH, expand=True)
-        
-        tk.Label(output_frame, text="📝 VĂN BẢN NHẬN DIỆN", 
-                font=("Segoe UI", 14, "bold"),
-                fg=TEXT_COLOR, bg=SECONDARY_BG).pack(pady=(15, 10))
-        
-        # Text widget with custom styling
-        text_container = tk.Frame(output_frame, bg=ACCENT_COLOR, padx=2, pady=2)
-        text_container.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
-        
-        self.result_widget = tk.Text(text_container, wrap='word',
-                                     font=("Consolas", 12),
-                                     bg="#0a0a0a", fg=SUCCESS_COLOR,
-                                     insertbackground=PRIMARY_COLOR,
-                                     relief=tk.FLAT,
-                                     padx=15, pady=15)
-        self.result_widget.pack(fill=tk.BOTH, expand=True)
         
         # Bottom status bar
         status_frame = tk.Frame(main_frame, bg=SECONDARY_BG, height=40)
@@ -354,10 +356,13 @@ class SignApp:
             self.stop_camera()
 
     def start_camera(self):
-        self.cap = cv2.VideoCapture(0)
+#        self.cap = cv2.VideoCapture(0)
+        url = "http://192.168.1.182:4747/video"
+        self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
         if not self.cap.isOpened():
             messagebox.showerror("Lỗi camera", "Không thể mở thiết bị camera")
             return
+        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
         
         # Set camera resolution for better performance on RPi
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
