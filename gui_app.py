@@ -22,12 +22,13 @@ try:
     from tflite_runtime.interpreter import Interpreter
     TFLITE_AVAILABLE = True
 except Exception:
-    TFLITE_AVAILABLE = False
     try:
         import tensorflow as tf
-        Interpreter = None
+        Interpreter = tf.lite.Interpreter
+        TFLITE_AVAILABLE = True
     except Exception:
-        tf = None
+        Interpreter = None
+        TFLITE_AVAILABLE = False
 
 # TTS
 try:
@@ -104,7 +105,7 @@ class ModernButton(tk.Canvas):
 class SignApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("VSLearner - Sign Language Recognition")
+        self.root.title("VSLearner - Nhận diện ngôn ngữ ký hiệu")
         
         # Fullscreen setup
         self.root.attributes('-fullscreen', True)
@@ -190,7 +191,7 @@ class SignApp:
                               fg=PRIMARY_COLOR, bg=SECONDARY_BG)
         title_label.pack(side=tk.LEFT, padx=30, pady=15)
         
-        subtitle_label = tk.Label(header_frame, text="Sign Language Recognition System",
+        subtitle_label = tk.Label(header_frame, text="Hệ thống nhận diện ngôn ngữ ký hiệu",
                                  font=("Segoe UI", 14),
                                  fg=TEXT_COLOR, bg=SECONDARY_BG)
         subtitle_label.pack(side=tk.LEFT, padx=(0, 30), pady=15)
@@ -216,7 +217,7 @@ class SignApp:
         video_header.pack(fill=tk.X)
         video_header.pack_propagate(False)
         
-        tk.Label(video_header, text="📹 CAMERA FEED", 
+        tk.Label(video_header, text="📹 CAMERA", 
                 font=("Segoe UI", 14, "bold"),
                 fg=TEXT_COLOR, bg=ACCENT_COLOR).pack(pady=12)
         
@@ -233,7 +234,7 @@ class SignApp:
         control_frame = tk.Frame(right_frame, bg=SECONDARY_BG)
         control_frame.pack(fill=tk.X, pady=(0, 15))
         
-        tk.Label(control_frame, text="⚙️ CONTROLS", 
+        tk.Label(control_frame, text="⚙️ ĐIỀU KHIỂN", 
                 font=("Segoe UI", 14, "bold"),
                 fg=TEXT_COLOR, bg=SECONDARY_BG).pack(pady=(15, 10))
         
@@ -241,15 +242,15 @@ class SignApp:
         btn_frame = tk.Frame(control_frame, bg=SECONDARY_BG)
         btn_frame.pack(pady=10)
         
-        self.start_btn = ModernButton(btn_frame, "▶ START CAMERA", 
+        self.start_btn = ModernButton(btn_frame, "▶ BẮT ĐẦU CAMERA", 
                                       self.toggle_camera, width=340, height=55)
         self.start_btn.pack(pady=8, padx=20)
         
-        clear_btn = ModernButton(btn_frame, "🗑 CLEAR TEXT", 
+        clear_btn = ModernButton(btn_frame, "🗑 XÓA VĂN BẢN", 
                                 self.clear_text, width=340, height=50)
         clear_btn.pack(pady=8, padx=20)
         
-        save_btn = ModernButton(btn_frame, "💾 SAVE TO FILE", 
+        save_btn = ModernButton(btn_frame, "💾 LƯU RA FILE", 
                                self.save_text, width=340, height=50)
         save_btn.pack(pady=8, padx=20)
         
@@ -257,7 +258,7 @@ class SignApp:
         tts_frame = tk.Frame(control_frame, bg=SECONDARY_BG)
         tts_frame.pack(pady=15)
         
-        tk.Checkbutton(tts_frame, text="🔊 Text-to-Speech", 
+        tk.Checkbutton(tts_frame, text="🔊 Chuyển văn bản thành lời", 
                       variable=self.tts_on,
                       font=("Segoe UI", 11),
                       fg=TEXT_COLOR, bg=SECONDARY_BG,
@@ -269,7 +270,7 @@ class SignApp:
         stats_frame = tk.Frame(right_frame, bg=SECONDARY_BG)
         stats_frame.pack(fill=tk.X, pady=(0, 15))
         
-        tk.Label(stats_frame, text="📊 STATISTICS", 
+        tk.Label(stats_frame, text="📊 THỐNG KÊ", 
                 font=("Segoe UI", 14, "bold"),
                 fg=TEXT_COLOR, bg=SECONDARY_BG).pack(pady=(15, 10))
         
@@ -277,19 +278,19 @@ class SignApp:
         stats_content.pack(fill=tk.X, padx=20, pady=(0, 15))
         
         # Stats labels
-        self.chars_label = tk.Label(stats_content, text="Characters: 0",
+        self.chars_label = tk.Label(stats_content, text="Ký tự: 0",
                                     font=("Segoe UI", 11),
                                     fg=TEXT_COLOR, bg=SECONDARY_BG,
                                     anchor='w')
         self.chars_label.pack(fill=tk.X, pady=3)
         
-        self.words_label = tk.Label(stats_content, text="Words: 0",
+        self.words_label = tk.Label(stats_content, text="Từ: 0",
                                     font=("Segoe UI", 11),
                                     fg=TEXT_COLOR, bg=SECONDARY_BG,
                                     anchor='w')
         self.words_label.pack(fill=tk.X, pady=3)
         
-        self.conf_label = tk.Label(stats_content, text="Avg Confidence: --",
+        self.conf_label = tk.Label(stats_content, text="Độ tin cậy trung bình: --",
                                    font=("Segoe UI", 11),
                                    fg=TEXT_COLOR, bg=SECONDARY_BG,
                                    anchor='w')
@@ -299,7 +300,7 @@ class SignApp:
         output_frame = tk.Frame(right_frame, bg=SECONDARY_BG)
         output_frame.pack(fill=tk.BOTH, expand=True)
         
-        tk.Label(output_frame, text="📝 RECOGNIZED TEXT", 
+        tk.Label(output_frame, text="📝 VĂN BẢN NHẬN DIỆN", 
                 font=("Segoe UI", 14, "bold"),
                 fg=TEXT_COLOR, bg=SECONDARY_BG).pack(pady=(15, 10))
         
@@ -320,7 +321,7 @@ class SignApp:
         status_frame.pack(fill=tk.X, side=tk.BOTTOM, pady=(15, 0))
         status_frame.pack_propagate(False)
         
-        self.status_var = tk.StringVar(value="⚪ Ready - Press START CAMERA to begin")
+        self.status_var = tk.StringVar(value="⚪ Sẵn sàng - Nhấn BẮT ĐẦU CAMERA để bắt đầu")
         status_label = tk.Label(status_frame, textvariable=self.status_var,
                                font=("Segoe UI", 10),
                                fg=TEXT_COLOR, bg=SECONDARY_BG,
@@ -328,7 +329,7 @@ class SignApp:
         status_label.pack(side=tk.LEFT, padx=20, pady=10)
         
         # Exit button
-        exit_label = tk.Label(status_frame, text="Press ESC to exit fullscreen | F11 to toggle",
+        exit_label = tk.Label(status_frame, text="Nhấn ESC để thoát toàn màn hình | F11 để chuyển đổi",
                             font=("Segoe UI", 9),
                             fg="#888888", bg=SECONDARY_BG)
         exit_label.pack(side=tk.RIGHT, padx=20, pady=10)
@@ -355,7 +356,7 @@ class SignApp:
     def start_camera(self):
         self.cap = cv2.VideoCapture(0)
         if not self.cap.isOpened():
-            messagebox.showerror("Camera Error", "Cannot open camera device")
+            messagebox.showerror("Lỗi camera", "Không thể mở thiết bị camera")
             return
         
         # Set camera resolution for better performance on RPi
@@ -363,9 +364,9 @@ class SignApp:
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         
         self.running = True
-        self.status_var.set("🟢 Camera active - Show hand gesture in ROI")
+        self.status_var.set("🟢 Camera hoạt động - Hiển thị cử chỉ tay trong vùng")
         self.status_indicator.itemconfig(self.status_circle, fill=SUCCESS_COLOR)
-        self.start_btn.itemconfig(self.start_btn.text_id, text="⏸ STOP CAMERA")
+        self.start_btn.itemconfig(self.start_btn.text_id, text="⏸ DỪNG CAMERA")
         self.last_seen_time = 0.0
         self._video_loop()
 
@@ -374,9 +375,9 @@ class SignApp:
         if self.cap:
             self.cap.release()
             self.cap = None
-        self.status_var.set("🔴 Camera stopped")
+        self.status_var.set("🔴 Camera đã dừng")
         self.status_indicator.itemconfig(self.status_circle, fill=WARNING_COLOR)
-        self.start_btn.itemconfig(self.start_btn.text_id, text="▶ START CAMERA")
+        self.start_btn.itemconfig(self.start_btn.text_id, text="▶ BẮT ĐẦU CAMERA")
 
     def clear_text(self):
         self.result_widget.delete('1.0', tk.END)
@@ -384,30 +385,30 @@ class SignApp:
         self.words_count = 0
         self.confidence_history = []
         self.update_stats()
-        self.status_var.set("🗑 Text cleared")
+        self.status_var.set("🗑 Đã xóa văn bản")
 
     def save_text(self):
         txt = self.result_widget.get('1.0', tk.END).strip()
         if not txt:
-            messagebox.showinfo("Save", "No content to save")
+            messagebox.showinfo("Lưu", "Không có nội dung để lưu")
             return
         fpath = filedialog.asksaveasfilename(defaultextension=".txt", 
                                             filetypes=[("Text files","*.txt")])
         if fpath:
             with open(fpath, 'w', encoding='utf8') as f:
                 f.write(txt)
-            messagebox.showinfo("Save", f"Saved to {fpath}")
-            self.status_var.set(f"💾 Saved to {os.path.basename(fpath)}")
+            messagebox.showinfo("Lưu", f"Đã lưu vào {fpath}")
+            self.status_var.set(f"💾 Đã lưu vào {os.path.basename(fpath)}")
 
     def _load_labels(self):
         try:
             with open(LABELS_JSON, 'r', encoding='utf8') as f:
                 j = json.load(f)
                 self.labels = j.get('classes', [])
-            self.status_var.set(f"✓ Labels loaded: {len(self.labels)} classes")
+            self.status_var.set(f"✓ Đã tải nhãn: {len(self.labels)} lớp")
         except Exception as e:
             self.labels = []
-            self.status_var.set(f"⚠ Labels not found: {e}")
+            self.status_var.set(f"⚠ Không tìm thấy nhãn: {e}")
 
     def _load_scaler(self):
         if SCALER_AVAILABLE and os.path.exists(SCALER_PKL):
@@ -426,7 +427,7 @@ class SignApp:
                 self.input_details = self.tflite.get_input_details()
                 self.output_details = self.tflite.get_output_details()
                 self.use_tflite = True
-                self.status_var.set("✓ TFLite model loaded successfully")
+                self.status_var.set("✓ Đã tải model TFLite thành công")
                 return
             except Exception as e:
                 print("TFLite load fail:", e)
@@ -435,12 +436,12 @@ class SignApp:
             try:
                 import tensorflow as tf
                 self.tf_model = tf.keras.models.load_model(MODEL_H5)
-                self.status_var.set("✓ Keras model loaded successfully")
+                self.status_var.set("✓ Đã tải model Keras thành công")
                 return
             except Exception as e:
                 print("Keras load fail:", e)
 
-        self.status_var.set("⚠ No model loaded (demo mode)")
+        self.status_var.set("⚠ Chưa tải model (chế độ demo)")
 
     def _predict_keypoints(self, kp):
         x = np.array(kp, dtype=np.float32).reshape(1, -1)
@@ -573,7 +574,7 @@ class SignApp:
         cv2.line(frame, (x2, y2), (x2, y2 - corner_length), color, thickness)
         
         # ROI label
-        cv2.putText(frame, "DETECTION ZONE", (x1, y2+25),
+        cv2.putText(frame, "", (x1, y2+25),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
         # Update state logic (same as original)
@@ -616,7 +617,7 @@ class SignApp:
                         self.result_widget.delete('1.0', tk.END)
                         self.result_widget.insert('1.0', newtxt)
                         self.update_stats()
-                        self.status_var.set(f"✓ Recognized: {self.session_candidate} ({predicted_conf:.1%})")
+                        self.status_var.set(f"✓ Đã nhận diện: {self.session_candidate} ({predicted_conf:.1%})")
                         
                         if self.tts_on.get() and self.tts_engine:
                             try:
@@ -643,7 +644,7 @@ class SignApp:
                 self.result_widget.delete('1.0', tk.END)
                 self.result_widget.insert('1.0', newtxt)
                 self.update_stats()
-                self.status_var.set("📝 Word completed")
+                self.status_var.set("📝 Đã hoàn thành từ")
             
             with self.lock:
                 self.session_candidate = None
@@ -665,7 +666,7 @@ class SignApp:
         self.video_panel.imgtk = imgtk
         self.video_panel.config(image=imgtk)
 
-        self.root.after(10, self._video_loop)
+        self.root.after(40, self._video_loop)
 
 
 
