@@ -196,6 +196,22 @@ class SignApp:
                                  fg=TEXT_COLOR, bg=SECONDARY_BG)
         subtitle_label.pack(side=tk.LEFT, padx=(0, 30), pady=15)
         
+        # --- THEM NUT TAT NGUON VAO HEADER ---
+        # 1. Tao nut (LUU Y: Xoa tham so bg=SECONDARY_BG o trong ngoac di)
+        self.off_btn = ModernButton(header_frame, "TAT NGUON", 
+                                    self.shutdown_system, 
+                                    width=130, height=40)
+        
+        # 2. Doi mau nen cho khop voi Header bang lenh configure
+        self.off_btn.configure(bg=SECONDARY_BG)
+        
+        # 3. Chinh mau DO cho noi bat (nhu cu)
+        self.off_btn.itemconfig(self.off_btn.rect, fill="#ff4757", outline="#ff6b81")
+        self.off_btn.itemconfig(self.off_btn.text_id, fill="#ffffff", font=("Segoe UI", 10, "bold"))
+        
+        # 4. Pack vao header
+        self.off_btn.pack(side=tk.RIGHT, padx=(10, 20), pady=20)
+        
         # Status indicator
         self.status_indicator = tk.Canvas(header_frame, width=20, height=20,
                                          bg=SECONDARY_BG, highlightthickness=0)
@@ -203,6 +219,7 @@ class SignApp:
         self.status_circle = self.status_indicator.create_oval(2, 2, 18, 18,
                                                               fill=WARNING_COLOR,
                                                               outline="")
+                                                                        
         
         # Main content area - 3 columns
         content_frame = tk.Frame(main_frame, bg=BG_COLOR)
@@ -404,7 +421,26 @@ class SignApp:
                 f.write(txt)
             messagebox.showinfo("Lưu", f"Đã lưu vào {fpath}")
             self.status_var.set(f"💾 Đã lưu vào {os.path.basename(fpath)}")
-
+        
+    def shutdown_system(self):
+        # Hoi xac nhan truoc khi tat de tranh bam nham
+        ans = messagebox.askyesno("Xac nhan", "Ban co chac muon TAT NGUON (Shutdown) VSLearner khong?")
+        
+        if ans:
+            # 1. Dung camera truoc
+            self.stop_camera()
+            
+            # 2. Thong bao dang tat
+            self.status_var.set("Dang tat may...")
+            self.root.update()
+            
+            # 3. Goi lenh tat may cua Linux (can quyen sudo)
+            import os
+            os.system("sudo shutdown now")
+            
+            # 4. Thoat ung dung
+            self.root.destroy()
+     
     def _load_labels(self):
         try:
             with open(LABELS_JSON, 'r', encoding='utf8') as f:
@@ -479,6 +515,16 @@ class SignApp:
         label = self.labels[idx] if idx < len(self.labels) else str(idx)
         return label, conf
 
+    def shutdown_system(self):
+        # Hoi xac nhan truoc khi tat
+        ans = messagebox.askyesno("Xac nhan", "Ban co chac muon TAT NGUON Raspberry Pi khong?")
+        if ans:
+            self.stop_camera()
+            import os
+            # Lenh tat may Linux
+            os.system("sudo shutdown now") 
+            self.root.destroy()
+    
     def _video_loop(self):
         if not self.running or self.cap is None:
             return
