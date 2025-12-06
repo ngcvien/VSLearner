@@ -108,7 +108,8 @@ class SignApp:
         self.root.title("VSLearner - Nhận diện ngôn ngữ ký hiệu")
         
         # Fullscreen setup
-        self.root.attributes('-fullscreen', True)
+        self.root.after(1000, lambda:self.root.attributes('-fullscreen', True))
+        #self.root.attributes('-fullscreen', True)
         self.root.configure(bg=BG_COLOR)
         
         # Get screen dimensions
@@ -186,8 +187,8 @@ class SignApp:
         header_frame.pack_propagate(False)
         
         # Title
-        title_label = tk.Label(header_frame, text="VSLearner", 
-                              font=("Segoe UI", 32, "bold"),
+        title_label = tk.Label(header_frame, text="OTT - VSLearner", 
+                              font=("Segoe UI", 30, "bold"),
                               fg=PRIMARY_COLOR, bg=SECONDARY_BG)
         title_label.pack(side=tk.LEFT, padx=15, pady=15)
         
