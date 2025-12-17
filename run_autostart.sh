@@ -11,7 +11,7 @@ cd /home/vdas/Desktop/projects/VSLearner
 
 # 4. Chay ung dung bang Python trong moi truong ao (pjs-env)
 # Luu y: Duong dan nay phai chinh xac tuyet doi
-#/home/vdas/Desktop/projects/pjs-env/bin/python gui_app.py &
+/home/vdas/Desktop/projects/pjs-env/bin/python gui_app.py &
 
 sleep 3
 
