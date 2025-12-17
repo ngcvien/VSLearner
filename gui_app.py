@@ -108,7 +108,8 @@ class SignApp:
         self.root.title("VSLearner - Nhận diện ngôn ngữ ký hiệu")
         
         # Fullscreen setup
-        self.root.attributes('-fullscreen', True)
+        self.root.after(1000, lambda:self.root.attributes('-fullscreen', True))
+        #self.root.attributes('-fullscreen', True)
         self.root.configure(bg=BG_COLOR)
         
         # Get screen dimensions
@@ -186,15 +187,31 @@ class SignApp:
         header_frame.pack_propagate(False)
         
         # Title
-        title_label = tk.Label(header_frame, text="VSLearner", 
-                              font=("Segoe UI", 32, "bold"),
+        title_label = tk.Label(header_frame, text="OTT - VSLearner", 
+                              font=("Segoe UI", 30, "bold"),
                               fg=PRIMARY_COLOR, bg=SECONDARY_BG)
-        title_label.pack(side=tk.LEFT, padx=30, pady=15)
+        title_label.pack(side=tk.LEFT, padx=15, pady=15)
         
         subtitle_label = tk.Label(header_frame, text="Hệ thống nhận diện ngôn ngữ ký hiệu",
-                                 font=("Segoe UI", 14),
+                                 font=("Segoe UI", 16),
                                  fg=TEXT_COLOR, bg=SECONDARY_BG)
         subtitle_label.pack(side=tk.LEFT, padx=(0, 30), pady=15)
+        
+        # --- THEM NUT TAT NGUON VAO HEADER ---
+        # 1. Tao nut (LUU Y: Xoa tham so bg=SECONDARY_BG o trong ngoac di)
+        self.off_btn = ModernButton(header_frame, "TAT NGUON", 
+                                    self.shutdown_system, 
+                                    width=130, height=40)
+        
+        # 2. Doi mau nen cho khop voi Header bang lenh configure
+        self.off_btn.configure(bg=SECONDARY_BG)
+        
+        # 3. Chinh mau DO cho noi bat (nhu cu)
+        self.off_btn.itemconfig(self.off_btn.rect, fill="#ff4757", outline="#ff6b81")
+        self.off_btn.itemconfig(self.off_btn.text_id, fill="#ffffff", font=("Segoe UI", 10, "bold"))
+        
+        # 4. Pack vao header
+        self.off_btn.pack(side=tk.RIGHT, padx=(10, 20), pady=20)
         
         # Status indicator
         self.status_indicator = tk.Canvas(header_frame, width=20, height=20,
@@ -203,6 +220,7 @@ class SignApp:
         self.status_circle = self.status_indicator.create_oval(2, 2, 18, 18,
                                                               fill=WARNING_COLOR,
                                                               outline="")
+                                                                        
         
         # Main content area - 3 columns
         content_frame = tk.Frame(main_frame, bg=BG_COLOR)
@@ -234,9 +252,9 @@ class SignApp:
         control_frame = tk.Frame(right_frame, bg=SECONDARY_BG)
         control_frame.pack(fill=tk.X, pady=(0, 15))
         
-        tk.Label(control_frame, text="⚙️ ĐIỀU KHIỂN", 
-                font=("Segoe UI", 14, "bold"),
-                fg=TEXT_COLOR, bg=SECONDARY_BG).pack(pady=(15, 10))
+#        tk.Label(control_frame, text="⚙️ ĐIỀU KHIỂN", 
+#                font=("Segoe UI", 14, "bold"),
+#                fg=TEXT_COLOR, bg=SECONDARY_BG).pack(pady=(15, 10))
         
         # Buttons
         btn_frame = tk.Frame(control_frame, bg=SECONDARY_BG)
@@ -252,7 +270,7 @@ class SignApp:
         
         save_btn = ModernButton(btn_frame, "💾 LƯU RA FILE", 
                                self.save_text, width=340, height=50)
-        save_btn.pack(pady=8, padx=20)
+#        save_btn.pack(pady=8, padx=20)
         
         # TTS Toggle
         tts_frame = tk.Frame(control_frame, bg=SECONDARY_BG)
@@ -260,13 +278,35 @@ class SignApp:
         
         tk.Checkbutton(tts_frame, text="🔊 Chuyển văn bản thành lời", 
                       variable=self.tts_on,
-                      font=("Segoe UI", 11),
+                      font=("Segoe UI", 14),
                       fg=TEXT_COLOR, bg=SECONDARY_BG,
                       selectcolor=ACCENT_COLOR,
                       activebackground=SECONDARY_BG,
                       activeforeground=PRIMARY_COLOR).pack()
         
-        # Statistics panel
+
+        
+        # Output text panel
+        output_frame = tk.Frame(right_frame, bg=SECONDARY_BG)
+        output_frame.pack(fill=tk.BOTH, expand=True)
+        
+        tk.Label(output_frame, text="📝 VĂN BẢN NHẬN DIỆN", 
+                font=("Segoe UI", 16, "bold"),
+                fg=TEXT_COLOR, bg=SECONDARY_BG).pack(pady=(15, 10))
+        
+        # Text widget with custom styling
+        text_container = tk.Frame(output_frame, bg=ACCENT_COLOR, padx=2, pady=2)
+        text_container.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
+        
+        self.result_widget = tk.Text(text_container, wrap='word',
+                                     font=("Consolas", 18),
+                                     bg="#0a0a0a", fg=SUCCESS_COLOR,
+                                     insertbackground=PRIMARY_COLOR,
+                                     relief=tk.FLAT,
+                                     padx=15, pady=15)
+        self.result_widget.pack(fill=tk.BOTH, expand=True)
+        
+                # Statistics panel
         stats_frame = tk.Frame(right_frame, bg=SECONDARY_BG)
         stats_frame.pack(fill=tk.X, pady=(0, 15))
         
@@ -295,26 +335,6 @@ class SignApp:
                                    fg=TEXT_COLOR, bg=SECONDARY_BG,
                                    anchor='w')
         self.conf_label.pack(fill=tk.X, pady=3)
-        
-        # Output text panel
-        output_frame = tk.Frame(right_frame, bg=SECONDARY_BG)
-        output_frame.pack(fill=tk.BOTH, expand=True)
-        
-        tk.Label(output_frame, text="📝 VĂN BẢN NHẬN DIỆN", 
-                font=("Segoe UI", 14, "bold"),
-                fg=TEXT_COLOR, bg=SECONDARY_BG).pack(pady=(15, 10))
-        
-        # Text widget with custom styling
-        text_container = tk.Frame(output_frame, bg=ACCENT_COLOR, padx=2, pady=2)
-        text_container.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
-        
-        self.result_widget = tk.Text(text_container, wrap='word',
-                                     font=("Consolas", 12),
-                                     bg="#0a0a0a", fg=SUCCESS_COLOR,
-                                     insertbackground=PRIMARY_COLOR,
-                                     relief=tk.FLAT,
-                                     padx=15, pady=15)
-        self.result_widget.pack(fill=tk.BOTH, expand=True)
         
         # Bottom status bar
         status_frame = tk.Frame(main_frame, bg=SECONDARY_BG, height=40)
@@ -354,10 +374,13 @@ class SignApp:
             self.stop_camera()
 
     def start_camera(self):
-        self.cap = cv2.VideoCapture(0)
+#        self.cap = cv2.VideoCapture(0)
+        url = "http://192.168.1.182:4747/video"
+        self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
         if not self.cap.isOpened():
             messagebox.showerror("Lỗi camera", "Không thể mở thiết bị camera")
             return
+        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
         
         # Set camera resolution for better performance on RPi
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
@@ -399,7 +422,26 @@ class SignApp:
                 f.write(txt)
             messagebox.showinfo("Lưu", f"Đã lưu vào {fpath}")
             self.status_var.set(f"💾 Đã lưu vào {os.path.basename(fpath)}")
-
+        
+    def shutdown_system(self):
+        # Hoi xac nhan truoc khi tat de tranh bam nham
+        ans = messagebox.askyesno("Xac nhan", "Ban co chac muon TAT NGUON (Shutdown) VSLearner khong?")
+        
+        if ans:
+            # 1. Dung camera truoc
+            self.stop_camera()
+            
+            # 2. Thong bao dang tat
+            self.status_var.set("Dang tat may...")
+            self.root.update()
+            
+            # 3. Goi lenh tat may cua Linux (can quyen sudo)
+            import os
+            os.system("sudo shutdown now")
+            
+            # 4. Thoat ung dung
+            self.root.destroy()
+     
     def _load_labels(self):
         try:
             with open(LABELS_JSON, 'r', encoding='utf8') as f:
@@ -474,6 +516,16 @@ class SignApp:
         label = self.labels[idx] if idx < len(self.labels) else str(idx)
         return label, conf
 
+    def shutdown_system(self):
+        # Hoi xac nhan truoc khi tat
+        ans = messagebox.askyesno("Xac nhan", "Ban co chac muon TAT NGUON Raspberry Pi khong?")
+        if ans:
+            self.stop_camera()
+            import os
+            # Lenh tat may Linux
+            os.system("sudo shutdown now") 
+            self.root.destroy()
+    
     def _video_loop(self):
         if not self.running or self.cap is None:
             return
