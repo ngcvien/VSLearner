@@ -93,8 +93,8 @@ data/enroll/
 # Models and trained artifacts
 # If you want to keep models in the repo, remove these lines. Tracked files won't be
 # automatically removed by adding this file — see the cleanup commands below.
-models/*.h5
-models/*.tflite
+# models/*.h5
+# models/*.tflite
 models/*.ckpt
 models/*.pb
 
