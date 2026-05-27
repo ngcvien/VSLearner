@@ -15,7 +15,7 @@ import tensorflow as tf
 from tensorflow.keras import layers, callbacks, models
 import pickle
 
-DATA_DIR = "../data/raw"   
+DATA_DIR = "../data/raw/static_data"   
 MODEL_OUT = "../models/sign_model.h5"
 SCALER_OUT = "../models/scaler.pkl"
 LABELS_OUT = "../models/labels.json"
