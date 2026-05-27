@@ -374,9 +374,10 @@ class SignApp:
             self.stop_camera()
 
     def start_camera(self):
-#        self.cap = cv2.VideoCapture(0)
-        url = "http://192.168.1.182:4747/video"
-        self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
+
+        self.cap = cv2.VideoCapture(0)
+        # url = "http://192.168.1.182:4747/video"
+        # self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
         if not self.cap.isOpened():
             messagebox.showerror("Lỗi camera", "Không thể mở thiết bị camera")
             return
