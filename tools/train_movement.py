@@ -88,7 +88,12 @@ def representative_dataset_gen(X, num_samples=100):
             yield [sample]
     return gen
 
-def convert_to_tflite(keras_model, tflite_path=TFLITE_OUT):
+def convert_to_tflite(
+    keras_model,
+    tflite_path=TFLITE_OUT,
+    quantize=False,
+    representative_data=None
+):
     converter = tf.lite.TFLiteConverter.from_keras_model(keras_model)
 
     # Cho phép ops TensorFlow (GRU/LSTM)
@@ -99,6 +104,11 @@ def convert_to_tflite(keras_model, tflite_path=TFLITE_OUT):
 
     # Tắt hạ cấp TensorList (quan trọng)
     converter._experimental_lower_tensor_list_ops = False
+
+    if quantize:
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        if representative_data is not None:
+            converter.representative_dataset = representative_data
 
     tflite_model = converter.convert()
 
@@ -173,23 +183,32 @@ def main(args):
     if args.quantize:
         print("Converting to quantized TFLite (INT8) using representative dataset...")
         # use a subset of training data as representative
-        convert_to_tflite(model, tflite_path=TFLITE_OUT)
+        convert_to_tflite(
+            model,
+            tflite_path=TFLITE_OUT,
+            quantize=True,
+            representative_data=representative_dataset_gen(X_train)
+        )
     else:
         print("Converting to TFLite (float32)...")
-        convert_to_tflite(keras.models.load_model(H5_OUT), quantize=False, tflite_path=TFLITE_OUT)
+        convert_to_tflite(
+            keras.models.load_model(H5_OUT),
+            tflite_path=TFLITE_OUT,
+            quantize=False
+        )
 
     # save class labels (if not exist)
-    labels_path = os.path.join(MODEL_DIR, "movement_labels.json")
-    if os.path.exists("models/movement_labels.json"):  # if builder already saved
-        pass
-    else:
-        # create labels simple 0..N-1
-        labels = [f"class_{i}" for i in range(num_classes)]
-        with open(labels_path, "w", encoding="utf8") as f:
-            json.dump(labels, f, indent=2)
-        print("Saved labels to", labels_path)
+    # labels_path = os.path.join(MODEL_DIR, "movement_labels.json")
+    # if os.path.exists("models/movement_labels.json"):  # if builder already saved
+    #     pass
+    # else:
+    #     # create labels simple 0..N-1
+    #     labels = [f"class_{i}" for i in range(num_classes)]
+    #     with open(labels_path, "w", encoding="utf8") as f:
+    #         json.dump(labels, f, indent=2)
+    #     print("Saved labels to", labels_path)
 
-    print("Done.")
+    # print("Done.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
