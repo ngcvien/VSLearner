@@ -2,6 +2,7 @@
 # gui_app.py - Modern fullscreen GUI for sign language recognition
 # Optimized for Raspberry Pi 4 with professional design
 
+from cProfile import label
 import os
 import time
 import json
@@ -10,12 +11,19 @@ from collections import Counter
 
 import cv2
 import numpy as np
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw, ImageFont
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
 # mediapipe
 import mediapipe as mp
+
+try:
+    from atms import ATMSConfig, MovementRecognizer
+    MOVEMENT_AVAILABLE = True
+except Exception as e:
+    MOVEMENT_AVAILABLE = False
+    MOVEMENT_IMPORT_ERROR = e
 
 # TFLite / Keras loading
 try:
@@ -50,6 +58,9 @@ MODEL_H5 = "models/sign_model.h5"
 LABELS_JSON = "models/labels.json"
 SCALER_PKL = "models/scaler.pkl"
 
+MOVEMENT_MODEL_TFLITE = "models/movement_model.tflite"
+MOVEMENT_LABELS_JSON = "models/movement_labels.json"
+
 ROI_RATIO = 0.6
 MIN_IN_FRAMES = 3
 STABLE_FRAMES = 4
@@ -63,7 +74,60 @@ PRIMARY_COLOR = "#00d4ff"
 TEXT_COLOR = "#eaeaea"
 SUCCESS_COLOR = "#00ff88"
 WARNING_COLOR = "#ff6b6b"
+
 # --------------------------------
+FONT_PATHS = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+    "C:/Windows/Fonts/arial.ttf"
+]
+
+
+def get_unicode_font(size=28):
+    for path in FONT_PATHS:
+        if os.path.exists(path):
+            return ImageFont.truetype(path, size)
+
+    return ImageFont.load_default()
+
+
+def draw_utf8_text(frame, text, pos, font_size=28, color=(0, 255, 0), bg=None):
+    """
+    Vẽ text tiếng Việt lên frame OpenCV.
+    frame: BGR image
+    color, bg: dùng hệ màu BGR giống OpenCV
+    """
+
+    img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(img_pil)
+
+    font = get_unicode_font(font_size)
+    x, y = pos
+
+    text = str(text)
+
+    # Đổi BGR sang RGB cho PIL
+    rgb_color = (color[2], color[1], color[0])
+
+    if bg is not None:
+        rgb_bg = (bg[2], bg[1], bg[0])
+
+        bbox = draw.textbbox((x, y), text, font=font)
+        pad = 6
+
+        draw.rectangle(
+            (
+                bbox[0] - pad,
+                bbox[1] - pad,
+                bbox[2] + pad,
+                bbox[3] + pad
+            ),
+            fill=rgb_bg
+        )
+
+    draw.text((x, y), text, font=font, fill=rgb_color)
+
+    return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
 
 class ModernButton(tk.Canvas):
     """Custom modern button with hover effects"""
@@ -127,6 +191,14 @@ class SignApp:
         self.labels = []
         self.scaler = None
         self.use_tflite = False
+        
+        # recognition mode
+        self.recognition_mode = "STATIC"   # STATIC or DYNAMIC
+
+        # movement recognition
+        self.movement_recognizer = None
+        self.skip_next_movement = True     # Movement 1 SKIP, Movement 2 SHOW
+        self.dynamic_last_text = ""
 
         # mediapipe
         self.mp_hands = mp.solutions.hands
@@ -167,6 +239,7 @@ class SignApp:
         self._load_labels()
         self._load_scaler()
         self._load_model()
+        self._load_movement_model()
         
         # Bind ESC key to exit fullscreen
         self.root.bind("<Escape>", self.toggle_fullscreen)
@@ -263,6 +336,15 @@ class SignApp:
         self.start_btn = ModernButton(btn_frame, "▶ BẮT ĐẦU CAMERA", 
                                       self.toggle_camera, width=340, height=55)
         self.start_btn.pack(pady=8, padx=20)
+        
+        self.mode_btn = ModernButton(
+            btn_frame,
+            "🔁 CHẾ ĐỘ: TĨNH",
+            self.toggle_recognition_mode,
+            width=340,
+            height=50
+        )
+        self.mode_btn.pack(pady=8, padx=20)
         
         clear_btn = ModernButton(btn_frame, "🗑 XÓA VĂN BẢN", 
                                 self.clear_text, width=340, height=50)
@@ -366,6 +448,94 @@ class SignApp:
         if self.confidence_history:
             avg_conf = sum(self.confidence_history[-20:]) / len(self.confidence_history[-20:])
             self.conf_label.config(text=f"Avg Confidence: {avg_conf:.1%}")
+            
+    def _load_movement_model(self):
+        if not MOVEMENT_AVAILABLE:
+            print("Movement import error:", MOVEMENT_IMPORT_ERROR)
+            return
+
+        if not os.path.exists(MOVEMENT_MODEL_TFLITE):
+            print("Không tìm thấy movement model:", MOVEMENT_MODEL_TFLITE)
+            return
+
+        if not os.path.exists(MOVEMENT_LABELS_JSON):
+            print("Không tìm thấy movement labels:", MOVEMENT_LABELS_JSON)
+            return
+
+        try:
+            config = ATMSConfig(
+                seq_len=100,
+                start_threshold=0.050,
+                stop_threshold=0.025,
+                start_frames=4,
+                stop_frames=8,
+                min_record_frames=20,
+                max_record_frames=180,
+                smooth_window=5,
+                pre_roll_frames=6,
+                cooldown_sec=0.6
+            )
+
+            self.movement_recognizer = MovementRecognizer(
+                model_path=MOVEMENT_MODEL_TFLITE,
+                label_path=MOVEMENT_LABELS_JSON,
+                config=config
+            )
+
+            print("Đã tải movement model thành công")
+
+        except Exception as e:
+            print("Movement model load error:", e)
+            self.movement_recognizer = None
+
+
+    def toggle_recognition_mode(self):
+        if self.recognition_mode == "STATIC":
+            self.recognition_mode = "DYNAMIC"
+            self.skip_next_movement = True
+            self.dynamic_last_text = ""
+
+            if self.movement_recognizer is not None:
+                self.movement_recognizer.atms.reset()
+
+            self.mode_btn.itemconfig(self.mode_btn.text_id, text="🔁 CHẾ ĐỘ: ĐỘNG")
+            self.status_var.set("🟣 Đã chuyển sang chế độ ĐỘNG - Không dùng khung đặt tay")
+
+        else:
+            self.recognition_mode = "STATIC"
+            self.in_roi = False
+            self.in_count = 0
+            self.out_count = 0
+            self.session_candidate = None
+            self.session_candidate_count = 0
+            self.session_last_appended = None
+
+            self.mode_btn.itemconfig(self.mode_btn.text_id, text="🔁 CHẾ ĐỘ: TĨNH")
+            self.status_var.set("🟢 Đã chuyển sang chế độ TĨNH - Dùng khung đặt tay")
+
+
+    def append_text_result(self, text):
+        current = self.result_widget.get('1.0', tk.END).rstrip('\n')
+        newtxt = current + text if current else text
+
+        self.result_widget.delete('1.0', tk.END)
+        self.result_widget.insert('1.0', newtxt)
+        self.update_stats()
+    def append_dynamic_result(self, text):
+        """
+        Chế độ động: mỗi kết quả là một từ, kết thúc bằng dấu cách.
+        """
+
+        current = self.result_widget.get('1.0', tk.END).rstrip('\n')
+
+        if current and not current.endswith(' '):
+            newtxt = current + " " + text + " "
+        else:
+            newtxt = current + text + " "
+
+        self.result_widget.delete('1.0', tk.END)
+        self.result_widget.insert('1.0', newtxt)
+        self.update_stats()
 
     def toggle_camera(self):
         if not self.running:
@@ -530,197 +700,355 @@ class SignApp:
     def _video_loop(self):
         if not self.running or self.cap is None:
             return
-        
+
         ret, frame = self.cap.read()
-        if not ret:
+
+        if not ret or frame is None:
             self.root.after(10, self._video_loop)
             return
 
         frame = cv2.flip(frame, 1)
         h, w = frame.shape[:2]
 
-        # ROI calculation
+        # ROI chỉ dùng cho chế độ tĩnh
         side = int(min(h, w) * ROI_RATIO)
         cx, cy = w // 2, h // 2
-        x1, y1 = cx - side//2, cy - side//2
-        x2, y2 = cx + side//2, cy + side//2
+        x1, y1 = cx - side // 2, cy - side // 2
+        x2, y2 = cx + side // 2, cy + side // 2
 
-        # Process with mediapipe
         img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self.hands.process(img_rgb)
 
         hand_in_this_frame = False
         predicted_label = None
         predicted_conf = 0.0
+        kp = None
 
         if results.multi_hand_landmarks:
             hand_landmarks = results.multi_hand_landmarks[0]
-            
-            # Draw hand landmarks with custom style
+
+            # Vẽ landmarks
             for connection in self.mp_hands.HAND_CONNECTIONS:
                 start_idx = connection[0]
                 end_idx = connection[1]
+
                 start = hand_landmarks.landmark[start_idx]
                 end = hand_landmarks.landmark[end_idx]
-                
+
                 start_point = (int(start.x * w), int(start.y * h))
                 end_point = (int(end.x * w), int(end.y * h))
-                
+
                 cv2.line(frame, start_point, end_point, (0, 255, 255), 2)
-            
-            # Draw landmarks
+
             for lm in hand_landmarks.landmark:
                 px, py = int(lm.x * w), int(lm.y * h)
                 cv2.circle(frame, (px, py), 4, (255, 0, 255), -1)
                 cv2.circle(frame, (px, py), 5, (0, 255, 255), 1)
 
-            # Wrist check
+            # Lấy vector landmark 63 chiều
+            kp = []
+            for lm in hand_landmarks.landmark:
+                kp.extend([lm.x, lm.y, lm.z])
+
             wrist = hand_landmarks.landmark[0]
             wx = int(wrist.x * w)
             wy = int(wrist.y * h)
             cv2.circle(frame, (wx, wy), 8, (0, 255, 0), -1)
 
-            if x1 <= wx <= x2 and y1 <= wy <= y2:
-                hand_in_this_frame = True
-                self.last_seen_time = time.time()
-                
-                kp = []
-                for lm in hand_landmarks.landmark:
-                    kp.extend([lm.x, lm.y, lm.z])
-                
-                label, conf = self._predict_keypoints(kp)
-                predicted_label = label
-                predicted_conf = conf
-                self.confidence_history.append(conf)
-                
-                # Display prediction with modern style
-                text = f"{label}"
-                conf_text = f"{conf:.1%}"
-                
-                # Background for text
-                (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 1.2, 2)
-                cv2.rectangle(frame, (x1, y1-60), (x1+tw+120, y1-5), (0, 0, 0), -1)
-                cv2.rectangle(frame, (x1, y1-60), (x1+tw+120, y1-5), (0, 212, 255), 2)
-                
-                cv2.putText(frame, text, (x1+10, y1-30),
-                           cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 255), 2)
-                cv2.putText(frame, conf_text, (x1+10, y1-10),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 136), 2)
+            # ==========================================================
+            # CHẾ ĐỘ TĨNH: dùng ROI như cũ
+            # ==========================================================
+            if self.recognition_mode == "STATIC":
+                if x1 <= wx <= x2 and y1 <= wy <= y2:
+                    hand_in_this_frame = True
+                    self.last_seen_time = time.time()
 
-        # Draw ROI with modern styling
-        # Corner style ROI
-        corner_length = 30
-        thickness = 3
-        color = (0, 255, 255) if hand_in_this_frame else (0, 200, 200)
-        
-        # Top-left
-        cv2.line(frame, (x1, y1), (x1 + corner_length, y1), color, thickness)
-        cv2.line(frame, (x1, y1), (x1, y1 + corner_length), color, thickness)
-        # Top-right
-        cv2.line(frame, (x2, y1), (x2 - corner_length, y1), color, thickness)
-        cv2.line(frame, (x2, y1), (x2, y1 + corner_length), color, thickness)
-        # Bottom-left
-        cv2.line(frame, (x1, y2), (x1 + corner_length, y2), color, thickness)
-        cv2.line(frame, (x1, y2), (x1, y2 - corner_length), color, thickness)
-        # Bottom-right
-        cv2.line(frame, (x2, y2), (x2 - corner_length, y2), color, thickness)
-        cv2.line(frame, (x2, y2), (x2, y2 - corner_length), color, thickness)
-        
-        # ROI label
-        cv2.putText(frame, "", (x1, y2+25),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                    label, conf = self._predict_keypoints(kp)
+                    predicted_label = label
+                    predicted_conf = conf
+                    self.confidence_history.append(conf)
 
-        # Update state logic (same as original)
-        if hand_in_this_frame:
-            self.in_count += 1
-            self.out_count = 0
-        else:
-            self.out_count += 1
-            self.in_count = 0
+                    text = f"{label}"
+                    conf_text = f"{conf:.1%}"
 
-        just_entered = False
-        just_exited = False
-        now = time.time()
+                    (tw, th), _ = cv2.getTextSize(
+                        text,
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1.2,
+                        2
+                    )
 
-        if self.in_count >= MIN_IN_FRAMES and not self.in_roi:
-            self.in_roi = True
-            just_entered = True
-            with self.lock:
-                self.session_candidate = None
-                self.session_candidate_count = 0
-                self.session_last_appended = None
+                    cv2.rectangle(
+                        frame,
+                        (x1, y1 - 60),
+                        (x1 + tw + 120, y1 - 5),
+                        (0, 0, 0),
+                        -1
+                    )
 
-        time_since_last_seen_ms = (now - self.last_seen_time) * 1000.0 if self.last_seen_time else 9999.0
-        if (self.out_count >= MIN_IN_FRAMES or time_since_last_seen_ms > EXIT_TIMEOUT_MS) and self.in_roi:
-            self.in_roi = False
-            just_exited = True
+                    cv2.rectangle(
+                        frame,
+                        (x1, y1 - 60),
+                        (x1 + tw + 120, y1 - 5),
+                        (0, 212, 255),
+                        2
+                    )
+                    
+                    frame = draw_utf8_text(
+                        frame,
+                        f"{label} {conf:.1%}",
+                        (x1 + 10, y1 - 55),
+                        font_size=30,
+                        color=(0, 255, 255),
+                        bg=(0, 0, 0)
+                    )                    
 
-        if self.in_roi:
-            if predicted_label is not None:
+                    # cv2.putText(
+                    #     frame,
+                    #     text,
+                    #     (x1 + 10, y1 - 30),
+                    #     cv2.FONT_HERSHEY_SIMPLEX,
+                    #     1.2,
+                    #     (0, 255, 255),
+                    #     2
+                    # )
+
+                    # cv2.putText(
+                    #     frame,
+                    #     conf_text,
+                    #     (x1 + 10, y1 - 10),
+                    #     cv2.FONT_HERSHEY_SIMPLEX,
+                    #     0.6,
+                    #     (0, 255, 136),
+                    #     2
+                    # )
+
+            # ==========================================================
+            # CHẾ ĐỘ ĐỘNG: không dùng ROI, chạy toàn khung hình
+            # ==========================================================
+            else:
+                if self.movement_recognizer is not None:
+                    try:
+                        event = self.movement_recognizer.update(kp)
+                    except Exception as e:
+                        event = None
+                        self.status_var.set(f"⚠ Lỗi movement: {e}")
+
+                    if event is not None:
+                        if event["event"] == "start":
+                            self.status_var.set("🟣 START movement")
+
+                        elif event["event"] == "stop":
+                            label = event["label"]
+                            conf = event["confidence"]
+
+                            if self.skip_next_movement:
+                                self.status_var.set(
+                                    f"↩ Bỏ qua movement chuẩn bị: {label} ({conf:.1%})"
+                                )
+                                self.skip_next_movement = False
+
+                            else:
+                                self.dynamic_last_text = f"{label} ({conf:.1%})"
+                                self.append_dynamic_result(label)       
+                                self.confidence_history.append(conf)
+
+                                self.status_var.set(
+                                    f"✓ Động: {label} ({conf:.1%})"
+                                )
+
+                                if self.tts_on.get() and self.tts_engine:
+                                    try:
+                                        self.tts_engine.say(label)
+                                        self.tts_engine.runAndWait()
+                                    except Exception:
+                                        pass
+
+                                self.skip_next_movement = True
+
+                else:
+                    self.status_var.set("⚠ Chưa tải movement model")
+
+        # ==========================================================
+        # HIỂN THỊ THEO CHẾ ĐỘ
+        # ==========================================================
+
+        if self.recognition_mode == "STATIC":
+            # Vẽ ROI chỉ trong chế độ tĩnh
+            corner_length = 30
+            thickness = 3
+            color = (0, 255, 255) if hand_in_this_frame else (0, 200, 200)
+
+            cv2.line(frame, (x1, y1), (x1 + corner_length, y1), color, thickness)
+            cv2.line(frame, (x1, y1), (x1, y1 + corner_length), color, thickness)
+
+            cv2.line(frame, (x2, y1), (x2 - corner_length, y1), color, thickness)
+            cv2.line(frame, (x2, y1), (x2, y1 + corner_length), color, thickness)
+
+            cv2.line(frame, (x1, y2), (x1 + corner_length, y2), color, thickness)
+            cv2.line(frame, (x1, y2), (x1, y2 - corner_length), color, thickness)
+
+            cv2.line(frame, (x2, y2), (x2 - corner_length, y2), color, thickness)
+            cv2.line(frame, (x2, y2), (x2, y2 - corner_length), color, thickness)
+
+            cv2.putText(
+                frame,
+                "STATIC MODE",
+                (10, 35),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (0, 255, 255),
+                2
+            )
+
+            # Logic ổn định ký tự tĩnh
+            if hand_in_this_frame:
+                self.in_count += 1
+                self.out_count = 0
+            else:
+                self.out_count += 1
+                self.in_count = 0
+
+            just_exited = False
+            now = time.time()
+
+            if self.in_count >= MIN_IN_FRAMES and not self.in_roi:
+                self.in_roi = True
+
+                with self.lock:
+                    self.session_candidate = None
+                    self.session_candidate_count = 0
+                    self.session_last_appended = None
+
+            time_since_last_seen_ms = (
+                (now - self.last_seen_time) * 1000.0
+                if self.last_seen_time else 9999.0
+            )
+
+            if (
+                self.out_count >= MIN_IN_FRAMES
+                or time_since_last_seen_ms > EXIT_TIMEOUT_MS
+            ) and self.in_roi:
+                self.in_roi = False
+                just_exited = True
+
+            if self.in_roi and predicted_label is not None:
                 if self.session_candidate != predicted_label:
                     self.session_candidate = predicted_label
                     self.session_candidate_count = 1
                 else:
                     self.session_candidate_count += 1
-                
+
                 if self.session_candidate_count >= STABLE_FRAMES:
                     if self.session_last_appended != self.session_candidate:
-                        current = self.result_widget.get('1.0', tk.END).rstrip('\n')
-                        newtxt = (current + self.session_candidate) if current else self.session_candidate
-                        self.result_widget.delete('1.0', tk.END)
-                        self.result_widget.insert('1.0', newtxt)
-                        self.update_stats()
-                        self.status_var.set(f"✓ Đã nhận diện: {self.session_candidate} ({predicted_conf:.1%})")
-                        
+                        self.append_text_result(self.session_candidate)
+
+                        self.status_var.set(
+                            f"✓ Tĩnh: {self.session_candidate} ({predicted_conf:.1%})"
+                        )
+
                         if self.tts_on.get() and self.tts_engine:
                             try:
                                 self.tts_engine.say(self.session_candidate)
                                 self.tts_engine.runAndWait()
                             except Exception:
                                 pass
-                        
+
                         self.session_last_appended = self.session_candidate
                         self.session_candidate_count = 0
                         self.session_candidate = None
 
-        if just_exited:
-            current = self.result_widget.get('1.0', tk.END).rstrip('\n')
-            should_space = False
-            
-            if self.session_last_appended is not None:
-                should_space = True
-            elif current and not current.endswith(' '):
-                should_space = True
+            if just_exited:
+                current = self.result_widget.get('1.0', tk.END).rstrip('\n')
 
-            if should_space and not current.endswith(' '):
-                newtxt = current + " "
-                self.result_widget.delete('1.0', tk.END)
-                self.result_widget.insert('1.0', newtxt)
-                self.update_stats()
-                self.status_var.set("📝 Đã hoàn thành từ")
-            
-            with self.lock:
-                self.session_candidate = None
-                self.session_candidate_count = 0
-                self.session_last_appended = None
+                should_space = False
 
-        # Convert and display frame
+                if self.session_last_appended is not None:
+                    should_space = True
+                elif current and not current.endswith(' '):
+                    should_space = True
+
+                if should_space and not current.endswith(' '):
+                    self.result_widget.delete('1.0', tk.END)
+                    self.result_widget.insert('1.0', current + " ")
+                    self.update_stats()
+                    self.status_var.set("📝 Đã hoàn thành từ")
+
+                with self.lock:
+                    self.session_candidate = None
+                    self.session_candidate_count = 0
+                    self.session_last_appended = None
+
+        else:
+            # Chế độ động: không vẽ ROI
+            state = "NONE"
+            mt = 0.0
+
+            if self.movement_recognizer is not None:
+                state = self.movement_recognizer.state
+                mt = self.movement_recognizer.last_score
+
+            next_text = "Next: SKIP" if self.skip_next_movement else "Next: SHOW"
+
+            cv2.putText(
+                frame,
+                "DYNAMIC MODE",
+                (10, 35),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (0, 255, 255),
+                2
+            )
+
+            cv2.putText(
+                frame,
+                f"ATMS: {state} | Mt: {mt:.4f}",
+                (10, 70),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.65,
+                (255, 255, 255),
+                2
+            )
+
+            cv2.putText(
+                frame,
+                next_text,
+                (10, 100),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.65,
+                (255, 255, 255),
+                2
+            )
+
+            if self.dynamic_last_text:
+                frame = draw_utf8_text(
+                    frame,
+                    self.dynamic_last_text,
+                    (10, 130),
+                    font_size=30,
+                    color=(0, 255, 0),
+                    bg=(0, 0, 0)
+                )
+
+        # ==========================================================
+        # Render frame lên Tkinter
+        # ==========================================================
+
         img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         im_pil = Image.fromarray(img)
-        
-        # Resize to fit panel while maintaining aspect ratio
+
         panel_width = self.video_panel.winfo_width()
         panel_height = self.video_panel.winfo_height()
-        
+
         if panel_width > 1 and panel_height > 1:
             im_pil.thumbnail((panel_width, panel_height), Image.LANCZOS)
-        
+
         imgtk = ImageTk.PhotoImage(image=im_pil)
+
         self.video_panel.imgtk = imgtk
         self.video_panel.config(image=imgtk)
 
         self.root.after(40, self._video_loop)
-
 
 
 def main():
