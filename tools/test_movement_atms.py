@@ -60,7 +60,18 @@ def main():
         config=CONFIG
     )
 
+    # cap = cv2.VideoCapture(0)
     cap = cv2.VideoCapture(0)
+
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    cap.set(cv2.CAP_PROP_FPS, 30)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+    if not cap.isOpened():
+        print("Không mở được camera")
+        return
 
     hands = mp_hands.Hands(
         max_num_hands=1,
@@ -81,7 +92,8 @@ def main():
     while True:
         ret, frame = cap.read()
 
-        if not ret:
+        if not ret or frame is None:
+            print("[WARN] Không đọc được frame")
             continue
 
         frame = cv2.flip(frame, 1)
