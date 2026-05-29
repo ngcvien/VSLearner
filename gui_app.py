@@ -19,7 +19,7 @@ from tkinter import filedialog, messagebox
 import mediapipe as mp
 
 try:
-    from atms import ATMSConfig, MovementRecognizer
+    from atms import MovementRecognizer, load_atms_config
     MOVEMENT_AVAILABLE = True
 except Exception as e:
     MOVEMENT_AVAILABLE = False
@@ -60,6 +60,7 @@ SCALER_PKL = "models/scaler.pkl"
 
 MOVEMENT_MODEL_TFLITE = "models/movement_model.tflite"
 MOVEMENT_LABELS_JSON = "models/movement_labels.json"
+ATMS_CONFIG_PATH = "configs/atms_profiles.json"
 
 ROI_RATIO = 0.6
 MIN_IN_FRAMES = 3
@@ -463,18 +464,7 @@ class SignApp:
             return
 
         try:
-            config = ATMSConfig(
-                seq_len=100,
-                start_threshold=0.050,
-                stop_threshold=0.025,
-                start_frames=4,
-                stop_frames=8,
-                min_record_frames=20,
-                max_record_frames=180,
-                smooth_window=5,
-                pre_roll_frames=6,
-                cooldown_sec=0.6
-            )
+            config = load_atms_config(path=ATMS_CONFIG_PATH)
 
             self.movement_recognizer = MovementRecognizer(
                 model_path=MOVEMENT_MODEL_TFLITE,

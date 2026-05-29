@@ -1,0 +1,26 @@
+{
+  "laptop": {
+    "seq_len": 100,
+    "start_threshold": 0.050,
+    "stop_threshold": 0.025,
+    "start_frames": 4,
+    "stop_frames": 8,
+    "min_record_frames": 20,
+    "max_record_frames": 180,
+    "smooth_window": 5,
+    "pre_roll_frames": 6,
+    "cooldown_sec": 0.6
+  },
+  "pi": {
+    "seq_len": 100,
+    "start_threshold": 0.090,
+    "stop_threshold": 0.050,
+    "start_frames": 4,
+    "stop_frames": 8,
+    "min_record_frames": 15,
+    "max_record_frames": 150,
+    "smooth_window": 5,
+    "pre_roll_frames": 6,
+    "cooldown_sec": 0.8
+  }
+}

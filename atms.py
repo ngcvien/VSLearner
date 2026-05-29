@@ -17,6 +17,7 @@ Mt <= Te trong Ne frame liên tục
 import os
 import json
 import time
+import platform
 from dataclasses import dataclass
 import numpy as np
 
@@ -29,6 +30,50 @@ except Exception:
     except Exception:
         tflite = None
 
+
+def is_raspberry_pi():
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+
+    if system != "linux" or not machine.startswith(("arm", "aarch64")):
+        return False
+
+    model_paths = (
+        "/proc/device-tree/model",
+        "/sys/firmware/devicetree/base/model",
+    )
+
+    for model_path in model_paths:
+        try:
+            with open(model_path, "r", encoding="utf-8", errors="ignore") as f:
+                if "raspberry pi" in f.read().lower():
+                    return True
+        except OSError:
+            pass
+
+    try:
+        with open("/proc/cpuinfo", "r", encoding="utf-8", errors="ignore") as f:
+            cpuinfo = f.read().lower()
+    except OSError:
+        return False
+
+    return "raspberry pi" in cpuinfo or "raspberrypi" in cpuinfo
+
+
+def detect_atms_profile():
+    return "pi" if is_raspberry_pi() else "laptop"
+
+
+def load_atms_config(profile=None, path="configs/atms_profiles.json"):
+    profile = profile or os.getenv("ATMS_PROFILE") or detect_atms_profile()
+
+    with open(path, "r", encoding="utf-8") as f:
+        profiles = json.load(f)
+
+    if profile not in profiles:
+        raise ValueError(f"Không có profile ATMS: {profile}")
+
+    return ATMSConfig(**profiles[profile])
 
 @dataclass
 class ATMSConfig:
