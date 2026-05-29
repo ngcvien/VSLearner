@@ -26,24 +26,14 @@ import mediapipe as mp
 
 sys.path.append(os.path.abspath(".."))
 
-from atms import ATMS, ATMSConfig
+from atms import ATMS, load_atms_config
 
 
 SAVE_DIR = "../data/raw/movement_data"
+ATMS_CONFIG_PATH = "../configs/atms_profiles.json"
 
 
-CONFIG = ATMSConfig(
-    seq_len=100,
-    start_threshold=0.050,
-    stop_threshold=0.025,
-    start_frames=4,
-    stop_frames=8,
-    min_record_frames=20,
-    max_record_frames=180,
-    smooth_window=5,
-    pre_roll_frames=6,
-    cooldown_sec=0.6
-)
+CONFIG = load_atms_config(path=ATMS_CONFIG_PATH)
 
 
 mp_hands = mp.solutions.hands
